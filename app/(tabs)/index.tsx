@@ -2,6 +2,10 @@ import readmiFace from '../../assets/readmi-face.png';
 import ReadmiChat from '../../components/ReadmiChat';
 import { useEffect, useRef, useState } from 'react';
 import readmiBgPeople from '../../assets/readmi-bg-people.png';
+import { useAudioPlayer } from 'expo-audio';
+import * as FileSystem from 'expo-file-system';
+
+const API_BASE_URL ='https://readmi.vercel.app';
 
 import {
   Alert,
@@ -274,7 +278,7 @@ const STRINGS: Record<
 export default function HomeScreen() {
   const cameraRef = useRef<CameraView | null>(null);
 const resultScrollRef = useRef<ScrollView | null>(null);
-const audioRef = useRef<HTMLAudioElement | null>(null);
+const player = useAudioPlayer(null);
 const titlePulse = useRef(new Animated.Value(0)).current;
 const scanAnim = useRef(new Animated.Value(0)).current;
 const [showChatHint, setShowChatHint] = useState(false);
@@ -429,62 +433,53 @@ function getReturnHook(lang: Lang, mode: Mode): string {
 }
 
 async function speakReadResult(result: ReadResult, lang: Lang) {
-
   try {
-   let textToSpeak = '';
+    let textToSpeak = '';
 
-if (isGreenRead(result)) {
-  const returnHook = getReturnHook(lang, mode);
-  textToSpeak = `${result.overallRead || ''} ${result.tryThis || ''} ${returnHook}`.trim();
-} else {
-  const firstOverall = firstSentence(result.overallRead);
-  const secondLine = firstSentence(result.improve || result.tryThis);
-  textToSpeak = `${firstOverall} ${secondLine}`.trim();
-}
+    if (isGreenRead(result)) {
+      const returnHook = getReturnHook(lang, mode);
+      textToSpeak = `${result.overallRead || ''} ${result.tryThis || ''} ${returnHook}`.trim();
+    } else {
+      const firstOverall = firstSentence(result.overallRead);
+      const secondLine = firstSentence(result.improve || result.tryThis);
+      textToSpeak = `${firstOverall} ${secondLine}`.trim();
+    }
+
     if (!textToSpeak) return;
-    if (Platform.OS !== "web") return;
 
-    const res = await fetch("http://localhost:3001/tts", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
+    const res = await fetch(`${API_BASE_URL}/api/tts`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ text: textToSpeak, lang }),
     });
 
-    if (!res.ok) {
-      const errText = await res.text();
-      console.error("TTS failed:", res.status, errText);
-      return;
+    if (!res.ok) return;
+
+    if (Platform.OS === 'web') {
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const audio = new Audio(url);
+      audio.onended = () => setTimeout(() => URL.revokeObjectURL(url), 300);
+      await audio.play();
+    } else {
+      const arrayBuffer = await res.arrayBuffer();
+      const base64 = btoa(
+        new Uint8Array(arrayBuffer).reduce(
+          (data, byte) => data + String.fromCharCode(byte),
+          ''
+        )
+      );
+      const fileUri = `${FileSystem.cacheDirectory}readmi_tts.mp3`;
+      await FileSystem.writeAsStringAsync(fileUri, base64, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+      player.replace(fileUri);
+      player.play();
     }
-
-    const blob = await res.blob();
-    const url = URL.createObjectURL(blob);
-
-    if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current.src = "";
-      audioRef.current = null;
-    }
-
-    const audio = new Audio(url);
-    audioRef.current = audio;
-    audio.volume = 1;
-
-    audio.onended = () => {
-      setTimeout(() => URL.revokeObjectURL(url), 300);
-    };
-
-    audio.onerror = (e) => {
-      console.error("Audio playback error:", e);
-      URL.revokeObjectURL(url);
-    };
-
-    await audio.play();
-    console.log("READMI audio started");
   } catch (err) {
-    console.error("speakReadResult error:", err);
+    console.error('speakReadResult error:', err);
   }
 }
-
 const finishRead = async () => {
   try {
     if (!cameraRef.current) {
@@ -493,7 +488,7 @@ const finishRead = async () => {
       return;
     }
 
-    await new Promise((res) => setTimeout(res, 500));
+    await new Promise((resolve) => setTimeout(resolve, 500));
 
     const photo = await cameraRef.current.takePictureAsync({
       quality: 0.7,
@@ -511,6 +506,7 @@ const finishRead = async () => {
 
     if (Platform.OS === 'web') {
       const video = document.querySelector('video') as HTMLVideoElement | null;
+
       if (!video) {
         setIsScanning(false);
         Alert.alert(t.genericError, t.webCameraNotFound);
@@ -522,6 +518,7 @@ const finishRead = async () => {
       canvas.height = video.videoHeight || 1280;
 
       const ctx = canvas.getContext('2d');
+
       if (!ctx) {
         setIsScanning(false);
         Alert.alert(t.genericError, t.canvasNotAvailable);
@@ -538,7 +535,7 @@ const finishRead = async () => {
       return;
     }
 
-    const response = await fetch('http://localhost:3001/analyze', {
+    const response = await fetch(`${API_BASE_URL}/api/analyze`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -559,16 +556,14 @@ const finishRead = async () => {
       return;
     }
 
-    await new Promise((res) => setTimeout(res, 1500));
+    await new Promise((resolve) => setTimeout(resolve, 1500));
 
     setPhotoUri(photo.uri);
     setResult(data);
 
-    if (Platform.OS === 'web') {
-      setTimeout(() => {
-        speakReadResult(data, lang);
-      }, 250);
-    }
+    setTimeout(() => {
+      speakReadResult(data, lang);
+    }, 250);
 
     if (premiumUnlocked) {
       setPremiumRetryCount((prev) => prev + 1);
@@ -580,9 +575,12 @@ const finishRead = async () => {
   } catch (err: any) {
     console.error('READMI camera capture error:', err);
     setIsScanning(false);
+
     Alert.alert(
       t.cameraError,
-      err?.message ? `${t.couldNotTakePicture}\n\n${err.message}` : t.couldNotTakePicture
+      err?.message
+        ? `${t.couldNotTakePicture}\n\n${err.message}`
+        : t.couldNotTakePicture
     );
   }
 };

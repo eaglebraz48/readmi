@@ -5,7 +5,27 @@ import OpenAI from "openai";
 
 const app = express();
 
-app.use(cors());
+const allowedOrigins = [
+  "http://localhost:8081",
+  "http://localhost:19006",
+  "https://readmi.vercel.app",
+];
+
+app.use(
+  cors({
+    origin(origin, callback) {
+      if (!origin) return callback(null, true);
+
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+
+      return callback(new Error(`CORS blocked for origin: ${origin}`));
+    },
+    methods: ["GET", "POST", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+  })
+);
 app.use(express.json({ limit: "20mb" }));
 
 const client = new OpenAI({
