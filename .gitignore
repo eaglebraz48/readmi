@@ -48,3 +48,5 @@ server/.env.*
 node_modules
 .expo
 dist
+.vercel
+.env*.local

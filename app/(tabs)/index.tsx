@@ -5,7 +5,7 @@ import readmiBgPeople from '../../assets/readmi-bg-people.png';
 import { useAudioPlayer } from 'expo-audio';
 import * as FileSystem from 'expo-file-system';
 
-const API_BASE_URL ='https://readmi.vercel.app';
+const API_BASE_URL = 'https://readmi-opal.vercel.app/api';
 
 import {
   Alert,
@@ -447,33 +447,36 @@ async function speakReadResult(result: ReadResult, lang: Lang) {
 
     if (!textToSpeak) return;
 
-    const res = await fetch(`${API_BASE_URL}/api/tts`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: textToSpeak, lang }),
-    });
-
-    if (!res.ok) return;
-
     if (Platform.OS === 'web') {
+      const res = await fetch(`${API_BASE_URL}/tts`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: textToSpeak, lang }),
+      });
+
+      if (!res.ok) return;
+
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const audio = new Audio(url);
       audio.onended = () => setTimeout(() => URL.revokeObjectURL(url), 300);
       await audio.play();
-    } else {
-      const arrayBuffer = await res.arrayBuffer();
-      const base64 = btoa(
-        new Uint8Array(arrayBuffer).reduce(
-          (data, byte) => data + String.fromCharCode(byte),
-          ''
-        )
-      );
-      const fileUri = `${FileSystem.cacheDirectory}readmi_tts.mp3`;
-      await FileSystem.writeAsStringAsync(fileUri, base64, {
-        encoding: FileSystem.EncodingType.Base64,
-      });
-      player.replace(fileUri);
+      return;
+    }
+
+    const fileUri = `${FileSystem.cacheDirectory}readmi_tts.mp3`;
+    const downloadRes = await FileSystem.downloadAsync(
+      `${API_BASE_URL}/tts`,
+      fileUri,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: textToSpeak, lang }),
+      }
+    );
+
+    if (downloadRes.status === 200) {
+      player.replace(downloadRes.uri);
       player.play();
     }
   } catch (err) {
@@ -535,7 +538,7 @@ const finishRead = async () => {
       return;
     }
 
-    const response = await fetch(`${API_BASE_URL}/api/analyze`, {
+    const response = await fetch(`${API_BASE_URL}/analyze`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({

@@ -128,7 +128,7 @@ export default function ReadmiChat({ lang, mode, result }: Props) {
     }, 50);
 
     try {
-      const response = await fetch('http://localhost:3001/chat', {
+      const response = await fetch('https://readmi-opal.vercel.app/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
