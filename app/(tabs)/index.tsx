@@ -465,24 +465,24 @@ async function speakReadResult(result: ReadResult, lang: Lang) {
     }
 
     const fileUri = `${FileSystem.cacheDirectory}readmi_tts.mp3`;
-    const downloadRes = await FileSystem.downloadAsync(
-      `${API_BASE_URL}/tts`,
-      fileUri,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: textToSpeak, lang }),
-      }
-    );
+    const ttsUrl =
+      `${API_BASE_URL}/tts?text=${encodeURIComponent(textToSpeak)}&lang=${encodeURIComponent(lang)}`;
+
+    const downloadRes = await FileSystem.downloadAsync(ttsUrl, fileUri, {
+      headers: { Accept: 'audio/mpeg' },
+    });
 
     if (downloadRes.status === 200) {
       player.replace(downloadRes.uri);
       player.play();
+    } else {
+      console.error('TTS download failed:', downloadRes.status);
     }
   } catch (err) {
     console.error('speakReadResult error:', err);
   }
 }
+
 const finishRead = async () => {
   try {
     if (!cameraRef.current) {
@@ -1502,4 +1502,29 @@ chatFloatingHintText: {
   fontWeight: '700',
   textAlign: 'center',
 },
+  resultGo: {
+    color: '#5DCAA5',
+    fontWeight: '700',
+  },
+  resultAdjust: {
+    color: '#FACC15',
+    fontWeight: '700',
+  },
+  chatToast: {
+    position: 'absolute',
+    bottom: 18,
+    alignSelf: 'center',
+    backgroundColor: 'rgba(17,24,39,0.96)',
+    borderWidth: 0.5,
+    borderColor: 'rgba(255,255,255,0.12)',
+    borderRadius: 999,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  chatToastText: {
+    color: '#ffffff',
+    fontSize: 12,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
 });

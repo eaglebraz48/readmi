@@ -1,6 +1,6 @@
 module.exports = async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "POST,OPTIONS");
+  res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
 
   if (req.method === "OPTIONS") {
@@ -8,19 +8,19 @@ module.exports = async function handler(req, res) {
   }
 
   if (req.method !== "POST" && req.method !== "GET") {
-  return res.status(405).json({ error: "Method not allowed" });
-}
+    return res.status(405).json({ error: "Method not allowed" });
+  }
 
   try {
     const text =
-  req.method === "GET"
-    ? req.query?.text
-    : req.body?.text;
+      req.method === "GET"
+        ? req.query?.text
+        : req.body?.text;
 
-const lang =
-  req.method === "GET"
-    ? req.query?.lang
-    : req.body?.lang;
+    const lang =
+      req.method === "GET"
+        ? req.query?.lang
+        : req.body?.lang;
 
     if (!text || !String(text).trim()) {
       return res.status(400).json({ error: "Missing text" });
@@ -33,7 +33,8 @@ const lang =
       return res.status(500).json({ error: "Missing ELEVENLABS_API_KEY" });
     }
 
-    const modelId = lang === "en" ? "eleven_flash_v2_5" : "eleven_multilingual_v2";
+    const modelId =
+      lang === "en" ? "eleven_flash_v2_5" : "eleven_multilingual_v2";
 
     const elevenRes = await fetch(
       `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}?output_format=mp3_44100_128`,
