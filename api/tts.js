@@ -7,12 +7,20 @@ module.exports = async function handler(req, res) {
     return res.status(200).end();
   }
 
-  if (req.method !== "POST") {
-    return res.status(405).json({ error: "Method not allowed" });
-  }
+  if (req.method !== "POST" && req.method !== "GET") {
+  return res.status(405).json({ error: "Method not allowed" });
+}
 
   try {
-    const { text, lang } = req.body || {};
+    const text =
+  req.method === "GET"
+    ? req.query?.text
+    : req.body?.text;
+
+const lang =
+  req.method === "GET"
+    ? req.query?.lang
+    : req.body?.lang;
 
     if (!text || !String(text).trim()) {
       return res.status(400).json({ error: "Missing text" });
