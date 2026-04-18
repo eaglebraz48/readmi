@@ -2,9 +2,7 @@ import readmiFace from '../../assets/readmi-face.png';
 import ReadmiChat from '../../components/ReadmiChat';
 import { useEffect, useRef, useState } from 'react';
 import readmiBgPeople from '../../assets/readmi-bg-people.png';
-import { useAudioPlayer } from 'expo-audio';
-import * as FileSystem from 'expo-file-system';
-
+import { useAudioPlayer, setAudioModeAsync } from 'expo-audio';
 const API_BASE_URL = 'https://readmi-opal.vercel.app/api';
 
 import {
@@ -320,6 +318,19 @@ useEffect(() => {
 }, [titlePulse]);
 
 useEffect(() => {
+  if (Platform.OS === 'web') return;
+
+  setAudioModeAsync({
+    playsInSilentMode: true,
+    shouldPlayInBackground: false,
+    interruptionMode: 'doNotMix',
+  }).catch((err) => {
+    console.error('Audio mode error:', err);
+  });
+}, []);
+
+
+useEffect(() => {
   Animated.loop(
     Animated.sequence([
       Animated.timing(scanAnim, {
@@ -454,7 +465,11 @@ async function speakReadResult(result: ReadResult, lang: Lang) {
         body: JSON.stringify({ text: textToSpeak, lang }),
       });
 
-      if (!res.ok) return;
+      if (!res.ok) {
+        const errText = await res.text();
+        console.error('Web TTS failed:', res.status, errText);
+        return;
+      }
 
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
@@ -464,20 +479,11 @@ async function speakReadResult(result: ReadResult, lang: Lang) {
       return;
     }
 
-    const fileUri = `${FileSystem.cacheDirectory}readmi_tts.mp3`;
     const ttsUrl =
       `${API_BASE_URL}/tts?text=${encodeURIComponent(textToSpeak)}&lang=${encodeURIComponent(lang)}`;
 
-    const downloadRes = await FileSystem.downloadAsync(ttsUrl, fileUri, {
-      headers: { Accept: 'audio/mpeg' },
-    });
-
-    if (downloadRes.status === 200) {
-      player.replace(downloadRes.uri);
-      player.play();
-    } else {
-      console.error('TTS download failed:', downloadRes.status);
-    }
+    player.replace(ttsUrl);
+    player.play();
   } catch (err) {
     console.error('speakReadResult error:', err);
   }
