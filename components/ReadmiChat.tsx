@@ -1,6 +1,8 @@
 import { useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -159,84 +161,94 @@ export default function ReadmiChat({ lang, mode, result }: Props) {
   };
 
   return (
-    <View style={styles.card}>
-      <View style={styles.header}>
-        <Text style={styles.title}>{TITLE[lang]}</Text>
-        <Text style={styles.subtitle}>{SUBTITLE[lang]}</Text>
-      </View>
+    <KeyboardAvoidingView
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 24}
+      style={styles.keyboardWrap}
+    >
+      <View style={styles.card}>
+        <View style={styles.header}>
+          <Text style={styles.title}>{TITLE[lang]}</Text>
+          <Text style={styles.subtitle}>{SUBTITLE[lang]}</Text>
+        </View>
 
-      <ScrollView
-        ref={scrollRef}
-        style={styles.messages}
-        contentContainerStyle={styles.messagesContent}
-        showsVerticalScrollIndicator={false}
-      >
-        {messages.map((msg, index) => (
-          <View
-            key={`${msg.role}-${index}`}
-            style={[
-              styles.bubbleWrap,
-              msg.role === 'user' ? styles.userWrap : styles.botWrap,
-            ]}
-          >
+        <ScrollView
+          ref={scrollRef}
+          style={styles.messages}
+          contentContainerStyle={styles.messagesContent}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          {messages.map((msg, index) => (
             <View
+              key={`${msg.role}-${index}`}
               style={[
-                styles.bubble,
-                msg.role === 'user' ? styles.userBubble : styles.botBubble,
+                styles.bubbleWrap,
+                msg.role === 'user' ? styles.userWrap : styles.botWrap,
               ]}
             >
-              <Text
+              <View
                 style={[
-                  styles.bubbleText,
-                  msg.role === 'user' ? styles.userText : styles.botText,
+                  styles.bubble,
+                  msg.role === 'user' ? styles.userBubble : styles.botBubble,
                 ]}
               >
-                {msg.text}
-              </Text>
+                <Text
+                  style={[
+                    styles.bubbleText,
+                    msg.role === 'user' ? styles.userText : styles.botText,
+                  ]}
+                >
+                  {msg.text}
+                </Text>
+              </View>
             </View>
-          </View>
-        ))}
+          ))}
 
-        {sending ? (
-          <View style={styles.botWrap}>
-            <View style={[styles.bubble, styles.botBubble, styles.loadingBubble]}>
-              <ActivityIndicator size="small" color="#cfc8ff" />
-              <Text style={styles.loadingText}>{THINKING[lang]}</Text>
+          {sending ? (
+            <View style={styles.botWrap}>
+              <View style={[styles.bubble, styles.botBubble, styles.loadingBubble]}>
+                <ActivityIndicator size="small" color="#cfc8ff" />
+                <Text style={styles.loadingText}>{THINKING[lang]}</Text>
+              </View>
             </View>
-          </View>
-        ) : null}
-      </ScrollView>
+          ) : null}
+        </ScrollView>
 
-      <View style={styles.quickRow}>
-        {quickPrompts.map((item) => (
-          <Pressable key={item} style={styles.quickChip} onPress={() => sendMessage(item)}>
-            <Text style={styles.quickChipText}>{item}</Text>
+        <View style={styles.quickRow}>
+          {quickPrompts.map((item) => (
+            <Pressable key={item} style={styles.quickChip} onPress={() => sendMessage(item)}>
+              <Text style={styles.quickChipText}>{item}</Text>
+            </Pressable>
+          ))}
+        </View>
+
+        <View style={styles.inputRow}>
+          <TextInput
+            value={input}
+            onChangeText={setInput}
+            placeholder={PLACEHOLDER[lang]}
+            placeholderTextColor="rgba(255,255,255,0.35)"
+            style={styles.input}
+            multiline
+          />
+          <Pressable
+            style={[styles.sendButton, sending && styles.sendButtonDisabled]}
+            onPress={() => sendMessage()}
+            disabled={sending}
+          >
+            <Text style={styles.sendButtonText}>{SEND[lang]}</Text>
           </Pressable>
-        ))}
+        </View>
       </View>
-
-      <View style={styles.inputRow}>
-        <TextInput
-          value={input}
-          onChangeText={setInput}
-          placeholder={PLACEHOLDER[lang]}
-          placeholderTextColor="rgba(255,255,255,0.35)"
-          style={styles.input}
-          multiline
-        />
-        <Pressable
-          style={[styles.sendButton, sending && styles.sendButtonDisabled]}
-          onPress={() => sendMessage()}
-          disabled={sending}
-        >
-          <Text style={styles.sendButtonText}>{SEND[lang]}</Text>
-        </Pressable>
-      </View>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
+  keyboardWrap: {
+    width: '100%',
+  },
   card: {
     marginTop: 14,
     backgroundColor: '#13161e',
