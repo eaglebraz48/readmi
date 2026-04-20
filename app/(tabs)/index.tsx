@@ -4,6 +4,10 @@ import { useEffect, useRef, useState } from 'react';
 import readmiBgPeople from '../../assets/readmi-bg-people.png';
 import { useAudioPlayer, setAudioModeAsync } from 'expo-audio';
 import * as FileSystem from 'expo-file-system';
+import Purchases from 'react-native-purchases';
+import { BILLING } from '../../constants/billing';
+
+
 const API_BASE_URL = 'https://readmi-opal.vercel.app/api';
 import {
   Alert,
@@ -65,6 +69,9 @@ const STRINGS: Record<
     plusLater: string;
     comingSoon: string;
     continueFree: string;
+weeklyPlan: string;
+monthlyPlan: string;
+
     contextLabel: string;
     cameraReady: string;
     cameraHint: string;
@@ -103,6 +110,9 @@ const STRINGS: Record<
     freeReadsLeft: 'free reads',
     plusTitle: 'Want more direction?',
     plusBody: 'Choose premium for camera + chat guidance, or continue free with camera only.',
+weeklyPlan: 'Weekly',
+monthlyPlan: 'Monthly',
+
     plusCta: 'Continue Premium',
     plusLater: 'Maybe later',
     comingSoon: 'Coming soon',
@@ -151,6 +161,9 @@ const STRINGS: Record<
     freeReadsLeft: 'leituras grátis',
     plusTitle: 'Quer mais direção?',
     plusBody: 'Escolha premium para câmera + chat com orientação, ou continue grátis só com a câmera.',
+weeklyPlan: 'Semanal',
+monthlyPlan: 'Mensal',
+
     plusCta: 'Continuar no premium',
     plusLater: 'Agora não',
     comingSoon: 'Em breve',
@@ -199,6 +212,9 @@ const STRINGS: Record<
     freeReadsLeft: 'lecturas gratis',
     plusTitle: '¿Quieres más dirección?',
     plusBody: 'Elige premium para cámara + chat con guía, o sigue gratis solo con la cámara.',
+weeklyPlan: 'Semanal',
+monthlyPlan: 'Mensual',
+
     plusCta: 'Continuar premium',
     plusLater: 'Ahora no',
     comingSoon: 'Próximamente',
@@ -247,6 +263,9 @@ const STRINGS: Record<
     freeReadsLeft: 'lectures gratuites',
     plusTitle: 'Tu veux plus de direction ?',
     plusBody: 'Choisis premium pour caméra + chat avec guidance, ou continue gratuitement avec la caméra seulement.',
+
+weeklyPlan: 'Hebdomadaire',
+monthlyPlan: 'Mensuel',
     plusCta: 'Continuer en premium',
     plusLater: 'Plus tard',
     comingSoon: 'Bientôt disponible',
@@ -280,6 +299,8 @@ export default function HomeScreen() {
   const [result, setResult] = useState<ReadResult | null>(null);
   const [lang, setLang] = useState<Lang>('en');
   const [mode, setMode] = useState<Mode>('interview');
+
+
   const [isScanning, setIsScanning] = useState(false);
   const [freeReadsUsed, setFreeReadsUsed] = useState(0);
   const [showChoicePopup, setShowChoicePopup] = useState(false);
@@ -309,6 +330,17 @@ export default function HomeScreen() {
       }
     })();
   }, []);
+
+  useEffect(() => {
+    if (Platform.OS === 'android' || Platform.OS === 'ios') {
+      try {
+        Purchases.configure({ apiKey: BILLING.androidApiKey });
+      } catch (e) {
+        console.log('RevenueCat configure error:', e);
+      }
+    }
+  }, []);
+
 
   useEffect(() => {
     Animated.loop(
@@ -598,12 +630,51 @@ export default function HomeScreen() {
     setIsScanning(true);
     await finishRead();
   };
-  const handleChoosePremium = async () => {
+  const handleChoosePremium = async (plan: 'weekly' | 'monthly') => {
+  try {
     setShowChoicePopup(false);
+
+    const offerings = await Purchases.getOfferings();
+    const current = offerings.current;
+
+    if (!current || !current.availablePackages.length) {
+      Alert.alert('Premium unavailable', 'No subscription package found.');
+      return;
+    }
+
+    const wantedId = plan === 'weekly' ? '$rc_weekly' : '$rc_monthly';
+
+    const selectedPackage =
+      current.availablePackages.find((pkg) => pkg.identifier === wantedId) ||
+      current.availablePackages.find((pkg) =>
+        plan === 'weekly'
+          ? pkg.product.identifier.toLowerCase().includes('weekly')
+          : pkg.product.identifier.toLowerCase().includes('monthly')
+      );
+
+    if (!selectedPackage) {
+      Alert.alert('Premium unavailable', `No ${plan} package found.`);
+      return;
+    }
+
+    const purchaseResult = await Purchases.purchasePackage(selectedPackage);
+    const isPremiumActive =
+      purchaseResult.customerInfo.entitlements.active[BILLING.entitlementId];
+
+    if (!isPremiumActive) {
+      Alert.alert('Purchase not active', 'Premium entitlement was not activated.');
+      return;
+    }
+
     setPremiumUnlocked(true);
     setIsScanning(true);
     await finishRead();
-  };
+  } catch (e: any) {
+    if (!e?.userCancelled) {
+      Alert.alert('Purchase error', e?.message || 'Could not complete purchase.');
+    }
+  }
+};
   const handleContinueFree = async () => {
     setShowChoicePopup(false);
     setFreeUnlocked(true);
@@ -658,20 +729,26 @@ export default function HomeScreen() {
     </View>
   );
   const renderChoicePopup = () =>
-    showChoicePopup ? (
-      <View style={styles.popupOverlay}>
-        <View style={styles.popupCard}>
-          <Text style={styles.popupTitle}>{t.plusTitle}</Text>
-          <Text style={styles.popupBody}>{t.plusBody}</Text>
-          <Pressable style={styles.primaryButton} onPress={handleChoosePremium}>
-            <Text style={styles.primaryButtonText}>{t.plusCta}</Text>
-          </Pressable>
-          <Pressable style={styles.secondaryButton} onPress={handleContinueFree}>
-            <Text style={styles.secondaryButtonText}>{t.continueFree}</Text>
-          </Pressable>
-        </View>
+  showChoicePopup ? (
+    <View style={styles.popupOverlay}>
+      <View style={styles.popupCard}>
+        <Text style={styles.popupTitle}>{t.plusTitle}</Text>
+        <Text style={styles.popupBody}>{t.plusBody}</Text>
+
+        <Pressable style={styles.primaryButton} onPress={() => handleChoosePremium('weekly')}>
+          <Text style={styles.primaryButtonText}>{t.weeklyPlan}</Text>
+        </Pressable>
+
+        <Pressable style={styles.secondaryButton} onPress={() => handleChoosePremium('monthly')}>
+          <Text style={styles.secondaryButtonText}>{t.monthlyPlan}</Text>
+        </Pressable>
+
+        <Pressable style={styles.ghostButton} onPress={handleContinueFree}>
+          <Text style={styles.ghostButtonText}>{t.continueFree}</Text>
+        </Pressable>
       </View>
-    ) : null;
+    </View>
+  ) : null;
   if (!permission) {
     return (
       <SafeAreaView style={styles.center}>
